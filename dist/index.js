@@ -8829,6 +8829,7 @@ Current date: ${currentDate}
 
 IMPORTANT: Entire response must be in the language with ISO code: ${this.options.language}
 `;
+            // Define messages array with proper type
             const messages = [
                 {
                     role: 'system',
@@ -8849,26 +8850,26 @@ IMPORTANT: Entire response must be in the language with ISO code: ${this.options
             const response = await pRetry(async () => {
                 const completionParams = {
                     model: this.openaiOptions.model,
-                    messages,
+                    messages: messages,
                     store: true // Store the conversation
                 };
                 // Handle differences between models
                 if (this.openaiOptions.model === 'o3-mini') {
                     // o3-mini specific parameters
-                    // eslint-disable-next-line camelcase
-                    completionParams.max_completion_tokens =
-                        this.openaiOptions.tokenLimits.maxCompletionTokens;
-                    // eslint-disable-next-line camelcase
-                    completionParams.reasoning_effort = 'medium'; // Added based on example
+                    // Calculate max_completion_tokens to avoid exceeding the model's context limit
+                    // Reserve enough tokens for the input messages (typically ~1500 tokens)
+                    const reservedInputTokens = 2000; // Buffer to account for system message and user input
+                    const adjustedMaxCompletionTokens = 200000 - reservedInputTokens;
+                    completionParams.max_completion_tokens = Math.min(adjustedMaxCompletionTokens, this.openaiOptions.tokenLimits.maxCompletionTokens || 100000);
+                    (0,core.info)(`Using max_completion_tokens: ${completionParams.max_completion_tokens}`);
+                    completionParams.reasoning_effort = "medium";
                 }
                 else {
                     // Standard models parameters
-                    // eslint-disable-next-line camelcase
-                    completionParams.max_tokens =
-                        this.openaiOptions.tokenLimits.responseTokens;
+                    completionParams.max_tokens = this.openaiOptions.tokenLimits.responseTokens;
                     completionParams.temperature = this.options.openaiModelTemperature;
                 }
-                return this.client.chat.completions.create(completionParams);
+                return await this.client.chat.completions.create(completionParams);
             }, {
                 retries: this.options.openaiRetries,
                 onFailedAttempt: error => {
@@ -11557,8 +11558,8 @@ class TokenLimits {
         this.maxCompletionTokens = 0;
         switch (model) {
             case 'o3-mini':
-                this.maxCompletionTokens = 200000;
-                this.responseTokens = 100000;
+                this.maxCompletionTokens = 100000;
+                this.responseTokens = 75000;
                 this.knowledgeCutOff = '2025-01-31';
                 break;
             case 'gpt-4o':
@@ -11599,7 +11600,7 @@ class TokenLimits {
                 break;
         }
         if (model === 'o3-mini') {
-            this.requestTokens = this.maxCompletionTokens - this.responseTokens - 100;
+            this.requestTokens = 100000;
         }
         else {
             this.requestTokens = this.maxTokens - this.responseTokens - 100;

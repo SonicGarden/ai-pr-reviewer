@@ -73,9 +73,10 @@ Current date: ${currentDate}
 IMPORTANT: Entire response must be in the language with ISO code: ${this.options.language}
 `
 
+      // Define messages array with proper type
       const messages: Array<OpenAI.ChatCompletionMessageParam> = [
         {
-          role: 'system' as const,
+          role: 'system',
           content: systemMessage
         }
       ]
@@ -89,7 +90,7 @@ IMPORTANT: Entire response must be in the language with ISO code: ${this.options
 
       // Add the current user message
       messages.push({
-        role: 'user' as const,
+        role: 'user',
         content: message
       })
 
@@ -97,27 +98,32 @@ IMPORTANT: Entire response must be in the language with ISO code: ${this.options
         async () => {
           const completionParams: OpenAI.ChatCompletionCreateParams = {
             model: this.openaiOptions.model,
-            messages,
+            messages: messages,
             store: true // Store the conversation
           }
 
           // Handle differences between models
           if (this.openaiOptions.model === 'o3-mini') {
             // o3-mini specific parameters
-            // eslint-disable-next-line camelcase
-            completionParams.max_completion_tokens =
-              this.openaiOptions.tokenLimits.maxCompletionTokens
-            // eslint-disable-next-line camelcase
-            completionParams.reasoning_effort = 'medium' // Added based on example
+            // Calculate max_completion_tokens to avoid exceeding the model's context limit
+            // Reserve enough tokens for the input messages (typically ~1500 tokens)
+            const reservedInputTokens = 2000; // Buffer to account for system message and user input
+            const adjustedMaxCompletionTokens = 200000 - reservedInputTokens;
+
+            completionParams.max_completion_tokens = Math.min(
+              adjustedMaxCompletionTokens,
+              this.openaiOptions.tokenLimits.maxCompletionTokens || 100000
+            );
+
+            info(`Using max_completion_tokens: ${completionParams.max_completion_tokens}`);
+            completionParams.reasoning_effort = "medium";
           } else {
             // Standard models parameters
-            // eslint-disable-next-line camelcase
-            completionParams.max_tokens =
-              this.openaiOptions.tokenLimits.responseTokens
+            completionParams.max_tokens = this.openaiOptions.tokenLimits.responseTokens
             completionParams.temperature = this.options.openaiModelTemperature
           }
 
-          return this.client!.chat.completions.create(completionParams)
+          return await this.client!.chat.completions.create(completionParams)
         },
         {
           retries: this.options.openaiRetries,
@@ -147,11 +153,7 @@ IMPORTANT: Entire response must be in the language with ISO code: ${this.options
         warning('openai response has no choices')
       }
     } catch (e: unknown) {
-      info(
-        `Failed to send message to openai: ${e}, backtrace: ${
-          (e as Error).stack
-        }`
-      )
+      info(`Failed to send message to openai: ${e}, backtrace: ${(e as Error).stack}`)
       throw e
     }
 
