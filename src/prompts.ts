@@ -99,77 +99,75 @@ $description
 $short_summary
 \`\`\`
 
-## IMPORTANT Instructions
+## UNIVERSAL CODE REVIEW PROTOCOL
 
-Input: New hunks annotated with line numbers and old hunks (replaced code). Hunks represent incomplete code fragments.
-Additional Context: PR title, description, summaries and comment chains.
-Task: Review new hunks for substantive issues using provided context and respond with comments if necessary.
-Output: Review comments in markdown with exact line number ranges in new hunks. Start and end line numbers must be within the same hunk. For single-line comments, start=end line number. Must use example response format below.
-Use fenced code blocks using the relevant language identifier where applicable.
-Don't annotate code snippets with line numbers. Format and indent code correctly.
-Do not use \`suggestion\` code blocks.
-For fixes, use \`diff\` code blocks, marking changes with \`+\` or \`-\`. The line number range for comments with fix snippets must exactly match the range to replace in the new hunk.
+### Important: Handling No-Issue Sections
+- Use the NO_COMMENT identifier for code ranges without issues
+- No actual comments will be created for ranges with this identifier
+- This is used for internal statistics only
 
-- Do NOT provide general feedback, summaries, explanations of changes, or praises 
-  for making good additions. 
-- Focus solely on offering specific, objective insights based on the 
-  given context and refrain from making broad comments about potential impacts on 
-  the system or question intentions behind the changes.
+### Analysis Framework
+1. **Initial Assessment**
+   - Understand the big picture (proportion and scope of additions/deletions/modifications)
+   - Evaluate whether implementation aligns with its intended purpose
+   - Consider the context of the change within the broader codebase
 
-If there are no issues found on a line range, you MUST respond with the 
-text \`LGTM!\` for that line range in the review section. 
+2. **Multi-level Inspection**
+   - **Level 1**: Syntax errors, basic bugs, obvious mistakes, naming conventions
+   - **Level 2**: Logic issues, edge cases, exception handling, error management
+   - **Level 3**: Architecture, design patterns, scalability, modularity
+   - **Level 4**: Security, performance, maintainability, test coverage
 
-## Example
+### Universal Review Guidelines
+1. **Priority-Based Review Items**
+   - **Critical**: Data loss risks, security vulnerabilities, crash-inducing bugs
+   - **High**: Logic errors, missing edge cases, inadequate error handling
+   - **Medium**: Performance issues, duplicate code, design concerns
+   - **Low**: Naming, comments, structure, consistency issues
 
-### Example changes
+2. **High-Quality Review Characteristics**
+   - Specific and actionable feedback
+   - Root cause identification
+   - Alternative implementation suggestions with context
+   - Educational explanations that help the developer learn
 
----new_hunk---
+### Universal Code Quality Considerations
+1. **Readability**: Is the code clear and self-documenting?
+2. **Maintainability**: How easy will it be to maintain or extend this code?
+3. **Testability**: Is the code structured to be easily testable?
+4. **Robustness**: How well does the code handle unexpected inputs or conditions?
+5. **Simplicity**: Is the solution unnecessarily complex?
+6. **Consistency**: Does the code follow established patterns in the codebase?
+
+## Output Format
+
+  For issues found, provide comments in the following format:
+
 \`\`\`
-  z = x / y
-    return z
-
-20: def add(x, y):
-21:     z = x + y
-22:     retrn z
-23: 
-24: def multiply(x, y):
-25:     return x * y
-
-def subtract(x, y):
-  z = x - y
-\`\`\`
-  
----old_hunk---
-\`\`\`
-  z = x / y
-    return z
-
-def add(x, y):
-    return x + y
-
-def subtract(x, y):
-    z = x - y
-\`\`\`
-
----comment_chains---
-\`\`\`
-Please review this change.
-\`\`\`
-
----end_change_section---
-
-### Example response
-
-22-22:
-There's a syntax error in the add function.
+[start_line]-[end_line]:
+[Problem description - what's wrong, why it's an issue, and its potential impact]
 \`\`\`diff
--    retrn z
-+    return z
+-[Problematic code]
++[Improvement suggestion - specific and implementable]
 \`\`\`
 ---
-24-25:
-LGTM!
+\`\`\`
+
+For code ranges without issues, respond in the following format (no GitHub comment will be created):
+
+\`\`\`
+[start_line]-[end_line]:
+NO_COMMENT
 ---
+\`\`\`
+
+### Critical Rules
+- Surround code snippets with code blocks using appropriate language identifiers
+- Ensure line number ranges are within the same hunk
+- Present correction suggestions in \`diff\` format with accurate line numbers
+- Avoid criticism based on speculation; only point out certain issues
+- Focus on meaningful problems rather than stylistic preferences
+- Provide educational context when suggesting improvements
 
 ## Changes made to \`$filename\` for your review
 
