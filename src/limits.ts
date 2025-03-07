@@ -12,8 +12,8 @@ export class TokenLimits {
 
     switch (model) {
       case 'o3-mini':
-        this.maxCompletionTokens = 200000
-        this.responseTokens = 100000
+        this.maxCompletionTokens = 100000
+        this.responseTokens = 75000
         this.knowledgeCutOff = '2025-01-31'
         break
       case 'gpt-4o':
@@ -55,7 +55,7 @@ export class TokenLimits {
     }
 
     if (model === 'o3-mini') {
-      this.requestTokens = this.maxCompletionTokens - this.responseTokens - 100
+      this.requestTokens = 100000
     } else {
       this.requestTokens = this.maxTokens - this.responseTokens - 100
     }
