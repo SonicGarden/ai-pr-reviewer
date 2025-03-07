@@ -1,12 +1,21 @@
 export class TokenLimits {
   maxTokens: number
+  maxCompletionTokens: number
   requestTokens: number
   responseTokens: number
   knowledgeCutOff: string
 
-  constructor(model = 'gpt-4o') {
+  constructor(model = 'o3-mini') {
     this.knowledgeCutOff = '2021-09-01'
+    this.maxTokens = 0
+    this.maxCompletionTokens = 0
+
     switch (model) {
+      case 'o3-mini':
+        this.maxCompletionTokens = 200000
+        this.responseTokens = 100000
+        this.knowledgeCutOff = '2025-01-31'
+        break
       case 'gpt-4o':
         this.maxTokens = 128000
         this.responseTokens = 4000
@@ -21,6 +30,7 @@ export class TokenLimits {
         this.maxTokens = 128000
         this.responseTokens = 4000
         this.knowledgeCutOff = '2023-04-01'
+        break
       case 'gpt-4-turbo-2024-04-09':
         this.maxTokens = 128000
         this.responseTokens = 4000
@@ -43,11 +53,19 @@ export class TokenLimits {
         this.responseTokens = 1000
         break
     }
-    // provide some margin for the request tokens
-    this.requestTokens = this.maxTokens - this.responseTokens - 100
+
+    if (model === 'o3-mini') {
+      this.requestTokens = this.maxCompletionTokens - this.responseTokens - 100
+    } else {
+      this.requestTokens = this.maxTokens - this.responseTokens - 100
+    }
   }
 
   string(): string {
-    return `max_tokens=${this.maxTokens}, request_tokens=${this.requestTokens}, response_tokens=${this.responseTokens}`
+    if (this.maxCompletionTokens > 0) {
+      return `max_completion_tokens=${this.maxCompletionTokens}, request_tokens=${this.requestTokens}, response_tokens=${this.responseTokens}`
+    } else {
+      return `max_tokens=${this.maxTokens}, request_tokens=${this.requestTokens}, response_tokens=${this.responseTokens}`
+    }
   }
 }
