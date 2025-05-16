@@ -5,7 +5,7 @@ export class TokenLimits {
   responseTokens: number
   knowledgeCutOff: string
 
-  constructor(model = 'o3-mini') {
+  constructor(model = 'o4-mini') {
     this.knowledgeCutOff = '2021-09-01'
     this.maxTokens = 0
     this.maxCompletionTokens = 0
@@ -59,7 +59,7 @@ export class TokenLimits {
         break
     }
 
-    if (model === 'o3-mini') {
+    if (model === 'o3-mini' || model === 'o4-mini') {
       this.requestTokens = 100000
     } else {
       this.requestTokens = this.maxTokens - this.responseTokens - 100

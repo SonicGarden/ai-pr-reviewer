@@ -8854,7 +8854,8 @@ IMPORTANT: Entire response must be in the language with ISO code: ${this.options
                     store: true // Store the conversation
                 };
                 // Handle differences between models
-                if (this.openaiOptions.model === 'o3-mini') {
+                if (this.openaiOptions.model === 'o3-mini' ||
+                    this.openaiOptions.model === 'o4-mini') {
                     // o3-mini specific parameters
                     // Calculate max_completion_tokens to avoid exceeding the model's context limit
                     // Reserve enough tokens for the input messages (typically ~1500 tokens)
@@ -11552,7 +11553,7 @@ class TokenLimits {
     requestTokens;
     responseTokens;
     knowledgeCutOff;
-    constructor(model = 'o3-mini') {
+    constructor(model = 'o4-mini') {
         this.knowledgeCutOff = '2021-09-01';
         this.maxTokens = 0;
         this.maxCompletionTokens = 0;
@@ -11604,7 +11605,7 @@ class TokenLimits {
                 this.responseTokens = 1000;
                 break;
         }
-        if (model === 'o3-mini') {
+        if (model === 'o3-mini' || model === 'o4-mini') {
             this.requestTokens = 100000;
         }
         else {

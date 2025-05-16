@@ -103,7 +103,10 @@ IMPORTANT: Entire response must be in the language with ISO code: ${this.options
           }
 
           // Handle differences between models
-          if (this.openaiOptions.model === 'o3-mini') {
+          if (
+            this.openaiOptions.model === 'o3-mini' ||
+            this.openaiOptions.model === 'o4-mini'
+          ) {
             // o3-mini specific parameters
             // Calculate max_completion_tokens to avoid exceeding the model's context limit
             // Reserve enough tokens for the input messages (typically ~1500 tokens)
