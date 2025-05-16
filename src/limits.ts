@@ -11,6 +11,11 @@ export class TokenLimits {
     this.maxCompletionTokens = 0
 
     switch (model) {
+      case 'o4-mini':
+        this.maxCompletionTokens = 100000
+        this.responseTokens = 75000
+        this.knowledgeCutOff = '2025-04-16'
+        break
       case 'o3-mini':
         this.maxCompletionTokens = 100000
         this.responseTokens = 75000

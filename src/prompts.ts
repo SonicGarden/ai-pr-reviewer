@@ -102,7 +102,7 @@ $short_summary
 ## UNIVERSAL CODE REVIEW PROTOCOL
 
 ### Important: Handling No-Issue Sections
-- Use the NO_COMMENT identifier for code ranges without issues
+- Nothing in the code range that is not problematic.
 - No actual comments will be created for ranges with this identifier
 - This is used for internal statistics only
 
@@ -150,14 +150,6 @@ $short_summary
 -[Problematic code]
 +[Improvement suggestion - specific and implementable]
 \`\`\`
----
-\`\`\`
-
-For code ranges without issues, respond in the following format (no GitHub comment will be created):
-
-\`\`\`
-[start_line]-[end_line]:
-NO_COMMENT
 ---
 \`\`\`
 
