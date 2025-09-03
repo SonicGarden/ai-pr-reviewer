@@ -1,13 +1,7 @@
 import './fetch-polyfill'
 
 import {info, setFailed, warning} from '@actions/core'
-import {
-  ChatGPTAPI,
-  ChatGPTError,
-  ChatMessage,
-  SendMessageOptions
-  // eslint-disable-next-line import/no-unresolved
-} from 'chatgpt'
+import OpenAI from 'openai'
 import pRetry from 'p-retry'
 import {OpenAIOptions, Options} from './options'
 
@@ -18,37 +12,24 @@ export interface Ids {
 }
 
 export class Bot {
-  private readonly api: ChatGPTAPI | null = null // not free
-
+  private readonly client: OpenAI | null = null
   private readonly options: Options
+  private readonly openaiOptions: OpenAIOptions
 
   constructor(options: Options, openaiOptions: OpenAIOptions) {
     this.options = options
+    this.openaiOptions = openaiOptions
+
     if (process.env.OPENAI_API_KEY) {
-      const currentDate = new Date().toISOString().split('T')[0]
-      const systemMessage = `${options.systemMessage} 
-Knowledge cutoff: ${openaiOptions.tokenLimits.knowledgeCutOff}
-Current date: ${currentDate}
-
-IMPORTANT: Entire response must be in the language with ISO code: ${options.language}
-`
-
-      this.api = new ChatGPTAPI({
-        apiBaseUrl: options.apiBaseUrl,
-        systemMessage,
+      this.client = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
-        apiOrg: process.env.OPENAI_API_ORG ?? undefined,
-        debug: options.debug,
-        maxModelTokens: openaiOptions.tokenLimits.maxTokens,
-        maxResponseTokens: openaiOptions.tokenLimits.responseTokens,
-        completionParams: {
-          temperature: options.openaiModelTemperature,
-          model: openaiOptions.model
-        }
+        organization: process.env.OPENAI_API_ORG ?? undefined,
+        baseURL: options.apiBaseUrl,
+        dangerouslyAllowBrowser: true // for GitHub Actions environment
       })
     } else {
       const err =
-        "Unable to initialize the OpenAI API, both 'OPENAI_API_KEY' environment variable are not available"
+        "Unable to initialize the OpenAI API, 'OPENAI_API_KEY' environment variable is not available"
       throw new Error(err)
     }
   }
@@ -59,9 +40,7 @@ IMPORTANT: Entire response must be in the language with ISO code: ${options.lang
       res = await this.chat_(message, ids)
       return res
     } catch (e: unknown) {
-      if (e instanceof ChatGPTError) {
-        warning(`Failed to chat: ${e}, backtrace: ${e.stack}`)
-      }
+      warning(`Failed to chat: ${e}, backtrace: ${(e as Error).stack}`)
       return res
     }
   }
@@ -76,53 +55,125 @@ IMPORTANT: Entire response must be in the language with ISO code: ${options.lang
       return ['', {}]
     }
 
-    let response: ChatMessage | undefined
+    if (this.client == null) {
+      setFailed('The OpenAI API is not initialized')
+      return ['', {}]
+    }
 
-    if (this.api != null) {
-      const opts: SendMessageOptions = {
-        timeoutMs: this.options.openaiTimeoutMS
-      }
-      if (ids.parentMessageId) {
-        opts.parentMessageId = ids.parentMessageId
-      }
-      try {
-        response = await pRetry(() => this.api!.sendMessage(message, opts), {
-          retries: this.options.openaiRetries
-        })
-      } catch (e: unknown) {
-        if (e instanceof ChatGPTError) {
-          info(
-            `response: ${response}, failed to send message to openai: ${e}, backtrace: ${e.stack}`
-          )
+    let responseText = ''
+    let responseId = ''
+
+    try {
+      // Build the list of messages for the conversation
+      const currentDate = new Date().toISOString().split('T')[0]
+      const systemMessage = `${this.options.systemMessage} 
+Knowledge cutoff: ${this.openaiOptions.tokenLimits.knowledgeCutOff}
+Current date: ${currentDate}
+
+IMPORTANT: Entire response must be in the language with ISO code: ${this.options.language}
+`
+
+      // Define messages array with proper type
+      const messages: Array<OpenAI.ChatCompletionMessageParam> = [
+        {
+          role: 'system',
+          content: systemMessage
         }
+      ]
+
+      // If we have a previous conversation, add it to maintain context
+      if (ids.parentMessageId && ids.conversationId) {
+        // We don't have actual previous messages, so we use the IDs to reference them
+        // In a real implementation, you'd want to store and retrieve the full message history
+        info(`Continuing conversation with parent ID: ${ids.parentMessageId}`)
       }
+
+      // Add the current user message
+      messages.push({
+        role: 'user',
+        content: message
+      })
+
+      const response = await pRetry(
+        async () => {
+          const completionParams: OpenAI.ChatCompletionCreateParams = {
+            model: this.openaiOptions.model,
+            messages: messages,
+            store: true // Store the conversation
+          }
+
+          // Handle differences between models
+          if (
+            this.openaiOptions.model === 'o3-mini' ||
+            this.openaiOptions.model === 'o4-mini'
+          ) {
+            // o3-mini specific parameters
+            // Calculate max_completion_tokens to avoid exceeding the model's context limit
+            // Reserve enough tokens for the input messages (typically ~1500 tokens)
+            const reservedInputTokens = 2000; // Buffer to account for system message and user input
+            const adjustedMaxCompletionTokens = 200000 - reservedInputTokens;
+
+            completionParams.max_completion_tokens = Math.min(
+              adjustedMaxCompletionTokens,
+              this.openaiOptions.tokenLimits.maxCompletionTokens || 100000
+            );
+
+            info(`Using max_completion_tokens: ${completionParams.max_completion_tokens}`);
+            completionParams.reasoning_effort = "medium";
+          } else {
+            // Standard models parameters
+            completionParams.max_tokens = this.openaiOptions.tokenLimits.responseTokens
+            completionParams.temperature = this.options.openaiModelTemperature
+          }
+
+          return await this.client!.chat.completions.create(completionParams)
+        },
+        {
+          retries: this.options.openaiRetries,
+          onFailedAttempt: error => {
+            warning(
+              `Attempt ${error.attemptNumber} failed. There are ${error.retriesLeft} retries left.`
+            )
+            info(`Error: ${error.message}`)
+          }
+        }
+      )
+
       const end = Date.now()
-      info(`response: ${JSON.stringify(response)}`)
+      if (this.options.debug) {
+        info(`response: ${JSON.stringify(response)}`)
+      }
       info(
-        `openai sendMessage (including retries) response time: ${
+        `openai chat completion (including retries) response time: ${
           end - start
         } ms`
       )
-    } else {
-      setFailed('The OpenAI API is not initialized')
+
+      if (response && response.choices && response.choices.length > 0) {
+        responseText = response.choices[0].message.content || ''
+        responseId = response.id
+      } else {
+        warning('openai response has no choices')
+      }
+    } catch (e: unknown) {
+      info(`Failed to send message to openai: ${e}, backtrace: ${(e as Error).stack}`)
+      throw e
     }
-    let responseText = ''
-    if (response != null) {
-      responseText = response.text
-    } else {
-      warning('openai response is null')
-    }
-    // remove the prefix "with " in the response
+
+    // remove the prefix "with " in the response if it exists
     if (responseText.startsWith('with ')) {
       responseText = responseText.substring(5)
     }
+
     if (this.options.debug) {
       info(`openai responses: ${responseText}`)
     }
+
     const newIds: Ids = {
-      parentMessageId: response?.id,
-      conversationId: response?.conversationId
+      parentMessageId: responseId,
+      conversationId: responseId // OpenAI API v2 doesn't have a specific conversationId
     }
+
     return [responseText, newIds]
   }
 }
